@@ -19,7 +19,6 @@ import (
 )
 
 func main() {
-	flag.Parse()
 	var (
 		file  string
 		read  bool
@@ -30,6 +29,7 @@ func main() {
 	flag.BoolVar(&read, "r", false, "Decrypt and read")
 	flag.BoolVar(&write, "w", false, "Write and encrypt")
 	flag.BoolVar(&help, "h", false, "Displays this help panel")
+	flag.Parse()
 
 	app(file, help, write, read)
 }
