@@ -121,7 +121,7 @@ func OpenEditor(file string) {
 }
 func SaveTmp(data []byte) (*os.File, error) {
 	tmpDir := os.TempDir()
-	tmpFile, err := ioutil.TempFile(tmpDir, "tempFilePrefix")
+	tmpFile, err := ioutil.TempFile(tmpDir, "DecryptedNote")
 	if err != nil {
 		return nil, err
 	}
