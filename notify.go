@@ -16,7 +16,12 @@ import (
 	"os/exec"
 
 	"golang.org/x/crypto/ssh/terminal"
+	yaml "gopkg.in/yaml.v3"
 )
+
+type conf struct {
+	Editor string
+}
 
 func main() {
 	var (
@@ -35,6 +40,10 @@ func main() {
 }
 
 func app(file string, help, write, read bool) {
+	cfg, err := readConf("config.yaml")
+	if err != nil {
+		log.Fatal(err)
+	}
 	if len(os.Args) < 2 || help {
 		flag.VisitAll(func(flag *flag.Flag) {
 			format := "\t-%s:\t %s (Default: '%s')\n"
@@ -60,7 +69,7 @@ func app(file string, help, write, read bool) {
 			}
 			fmt.Println()
 			key := sha256.Sum256(pass1)
-			OpenEditor(file)
+			OpenEditor(file, cfg)
 			Encrypt(file, file, key[:])
 		} else {
 			//If an encrypted file with this name exists then enter editing mode
@@ -77,7 +86,7 @@ func app(file string, help, write, read bool) {
 			tmpFile, err := SaveTmp(data)
 			ReturnErr(err)
 
-			OpenEditor(tmpFile.Name())
+			OpenEditor(tmpFile.Name(), cfg)
 			Encrypt(tmpFile.Name(), file, key[:])
 			os.Remove(tmpFile.Name())
 		}
@@ -96,9 +105,24 @@ func app(file string, help, write, read bool) {
 		tmpFile, err := SaveTmp(data)
 		ReturnErr(err)
 
-		OpenEditor(tmpFile.Name())
+		OpenEditor(tmpFile.Name(), cfg)
 	}
 
+}
+
+func readConf(filename string) (*conf, error) {
+	buf, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	c := &conf{}
+	err = yaml.Unmarshal(buf, c)
+	if err != nil {
+		return nil, fmt.Errorf("in file %q: %v", filename, err)
+	}
+
+	return c, nil
 }
 
 func ReturnErr(err error) {
@@ -107,8 +131,8 @@ func ReturnErr(err error) {
 		return
 	}
 }
-func OpenEditor(file string) {
-	path, err := exec.LookPath("vim")
+func OpenEditor(file string, conf *conf) {
+	path, err := exec.LookPath(conf.Editor)
 	cmd := exec.Command(path, file)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -121,7 +145,7 @@ func OpenEditor(file string) {
 }
 func SaveTmp(data []byte) (*os.File, error) {
 	tmpDir := os.TempDir()
-	tmpFile, err := ioutil.TempFile(tmpDir, "tempFilePrefix")
+	tmpFile, err := ioutil.TempFile(tmpDir, "DecryptedNote")
 	if err != nil {
 		return nil, err
 	}
