@@ -28,18 +28,20 @@ func main() {
 		file  string
 		read  bool
 		write bool
+		edit  bool
 		help  bool
 	)
 	flag.StringVar(&file, "f", "", "Specify the file")
-	flag.BoolVar(&read, "r", false, "Decrypt and read")
-	flag.BoolVar(&write, "w", false, "Write and encrypt")
+	flag.BoolVar(&read, "r", false, "Decrypt file and read")
+	flag.BoolVar(&write, "w", false, "Write to file and encrypt")
+	flag.BoolVar(&edit, "e", false, "Enter editing mode")
 	flag.BoolVar(&help, "h", false, "Displays this help panel")
 	flag.Parse()
 
-	app(file, help, write, read)
+	app(file, help, read, write, edit)
 }
 
-func app(file string, help, write, read bool) {
+func app(file string, help, read, write, edit bool) {
 	cfg, err := readConf("config.yaml")
 	if err != nil {
 		log.Fatal(err)
@@ -49,14 +51,10 @@ func app(file string, help, write, read bool) {
 			format := "\t-%s:\t %s (Default: '%s')\n"
 			fmt.Printf(format, flag.Name, flag.Usage, flag.DefValue)
 		})
-		fmt.Println()
-		fmt.Println("Write a file:\tNotify -f filename -w")
-		fmt.Println("Read a file:\tNotify -f filename -r")
+		fmt.Printf("\nExample: ./notify -f mynote -w\n")
 	}
 	if file != "" && write {
-		if _, err := os.Stat(file); errors.Is(err, os.ErrNotExist) {
-			//if an encrypted file with this name does NOT exist, then create one
-			//and enter editing mode
+		if _, err = os.Stat(file); errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("Create a password: ")
 			pass1, err := PromptPassword()
 			ReturnErr(err)
@@ -71,27 +69,34 @@ func app(file string, help, write, read bool) {
 			key := sha256.Sum256(pass1)
 			OpenEditor(file, cfg)
 			Encrypt(file, file, key[:])
+			return
 		} else {
-			//If an encrypted file with this name exists then enter editing mode
-			fmt.Print("Password: ")
-			pass, err := PromptPassword()
-			ReturnErr(err)
-
-			key := sha256.Sum256(pass)
-			data, err := Decrypt(file, key[:])
-			if err != nil {
-				log.Fatal(err)
+			fmt.Printf("There already exists a file with such a name, proceed anyways? (this will encrypt all the data in that file) y/N: ")
+			ans := ""
+			fmt.Scanf("%s", &ans)
+			if ans == "Y" || ans == "y" {
+				fmt.Printf("Create a password: ")
+				pass1, err := PromptPassword()
+				ReturnErr(err)
+				fmt.Printf("\nRepeat the password: ")
+				pass2, err := PromptPassword()
+				ReturnErr(err)
+				if bytes.Compare(pass1, pass2) != 0 {
+					fmt.Printf("\nThe passwords don't match, try again.\n")
+					return
+				}
+				fmt.Println()
+				key := sha256.Sum256(pass1)
+				OpenEditor(file, cfg)
+				Encrypt(file, file, key[:])
+				return
+			} else {
+				return
 			}
-
-			tmpFile, err := SaveTmp(data)
-			ReturnErr(err)
-
-			OpenEditor(tmpFile.Name(), cfg)
-			Encrypt(tmpFile.Name(), file, key[:])
-			os.Remove(tmpFile.Name())
 		}
 	}
-	if file != "" && read {
+
+	if file != "" && edit {
 		fmt.Print("Password: ")
 		pass, err := PromptPassword()
 		ReturnErr(err)
@@ -106,6 +111,24 @@ func app(file string, help, write, read bool) {
 		ReturnErr(err)
 
 		OpenEditor(tmpFile.Name(), cfg)
+		Encrypt(tmpFile.Name(), file, key[:])
+		os.Remove(tmpFile.Name())
+	}
+	if file != "" && read {
+		fmt.Print("Password: ")
+		pass, err := PromptPassword()
+		ReturnErr(err)
+
+		key := sha256.Sum256(pass)
+		data, err := Decrypt(file, key[:])
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		tmpFile, err := SaveTmp(data)
+		ReturnErr(err)
+		OpenEditor(tmpFile.Name(), cfg)
+		os.Remove(tmpFile.Name())
 	}
 
 }
@@ -153,7 +176,6 @@ func SaveTmp(data []byte) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("\nDecrypted contents saved to %s\n", tmpFile.Name())
 	return tmpFile, nil
 }
 func Decrypt(src string, key []byte) ([]byte, error) {
