@@ -3,5 +3,7 @@ Notify is a simple note-taking app which encrypts your notes with a password. Yo
 
 #### Installation:
 `git clone https://github.com/Nisophix/Notify && cd Notify`
+
 `go build notify.go`
+
 `./notify -h`
